@@ -31,7 +31,7 @@ the lockdown is active.
 ## Requirements
 
 - Windows 10 or 11
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 11 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/11.0)
 - Administrator privileges (the executable carries a manifest that requests
   elevation automatically).
 
@@ -43,7 +43,7 @@ cd TorWall
 dotnet build -c Release
 ```
 
-The compiled binary will be in `TorWall/bin/Release/net8.0-windows/`.
+The compiled binary will be in `TorWall/bin/Release/net11.0-windows/`.
 For a single self-contained executable:
 
 ```powershell
