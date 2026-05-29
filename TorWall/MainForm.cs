@@ -26,6 +26,7 @@ public sealed class MainForm : Form
         MinimumSize = new Size(420, 320);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
+        Icon = LoadAppIcon();
 
         _lblStatus.Text = "Status: idle";
         _lblStatus.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
@@ -58,7 +59,7 @@ public sealed class MainForm : Form
 
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Shield,
+            Icon = Icon ?? SystemIcons.Shield,
             Text = "TorWall",
             Visible = true,
             ContextMenuStrip = BuildTrayMenu(),
@@ -67,6 +68,16 @@ public sealed class MainForm : Form
 
         FormClosing += OnFormClosing;
         Shown += OnShown;
+    }
+
+    private static Icon? LoadAppIcon()
+    {
+        try
+        {
+            using var s = typeof(MainForm).Assembly.GetManifestResourceStream("TorWall.torwall.ico");
+            return s is null ? null : new Icon(s);
+        }
+        catch { return null; }
     }
 
     private ContextMenuStrip BuildTrayMenu()

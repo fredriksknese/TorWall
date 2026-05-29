@@ -9,7 +9,14 @@
     <RootNamespace>TorWall</RootNamespace>
     <AssemblyName>TorWall</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>torwall.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="torwall.ico">
+      <LogicalName>TorWall.torwall.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
 </Project>

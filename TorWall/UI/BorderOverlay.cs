@@ -6,8 +6,6 @@ namespace TorWall.UI;
 /// One thin yellow click-through edge of the on-screen frame.
 internal sealed class EdgeForm : Form
 {
-    private const int WS_EX_TRANSPARENT = 0x20;
-    private const int WS_EX_LAYERED = 0x80000;
     private const int WS_EX_TOOLWINDOW = 0x80;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOPMOST = 0x8;
@@ -17,8 +15,11 @@ internal sealed class EdgeForm : Form
         get
         {
             var cp = base.CreateParams;
-            cp.ExStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW
-                          | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            // WS_EX_LAYERED / WS_EX_TRANSPARENT are deliberately NOT set here.
+            // A layered window that has never had SetLayeredWindowAttributes
+            // called on it is never painted, so we add those bits later from
+            // BorderOverlayManager.SetClickThrough after the handle exists.
+            cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
             return cp;
         }
     }
@@ -40,6 +41,11 @@ internal sealed class EdgeForm : Form
 /// is active. Listens for display-setting changes and rebuilds itself.
 public sealed class BorderOverlayManager : IDisposable
 {
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_LAYERED = 0x80000;
+    private const int WS_EX_TRANSPARENT = 0x20;
+    private const uint LWA_ALPHA = 0x2;
+
     private readonly int _thickness;
     private readonly List<EdgeForm> _edges = new();
     private bool _visible;
@@ -73,6 +79,9 @@ public sealed class BorderOverlayManager : IDisposable
         foreach (var f in _edges) f.Close();
         _edges.Clear();
 
+        // Cover the union of all monitors (SystemInformation.VirtualScreen)
+        // by drawing four edges per monitor — each monitor gets its own
+        // frame so users with multiple displays see a ring on every screen.
         foreach (var screen in Screen.AllScreens)
         {
             var b = screen.Bounds;
@@ -85,27 +94,31 @@ public sealed class BorderOverlayManager : IDisposable
         foreach (var f in _edges)
         {
             f.Show();
-            SetClickThrough(f.Handle);
+            ApplyLayeredClickThrough(f.Handle);
         }
     }
 
-    /// Re-apply the extended-style bits after the handle exists. Some
-    /// composition modes drop WS_EX_TRANSPARENT during creation, so we
-    /// set it again explicitly via SetWindowLong.
-    private static void SetClickThrough(IntPtr hwnd)
+    /// Promote the window to a layered window with full opacity and pass
+    /// every hit-test through to whatever is underneath. Order matters:
+    /// SetLayeredWindowAttributes must come AFTER WS_EX_LAYERED is set,
+    /// and BEFORE the window paints, or the frame stays invisible.
+    private static void ApplyLayeredClickThrough(IntPtr hwnd)
     {
-        const int GWL_EXSTYLE = -20;
-        const int WS_EX_TRANSPARENT = 0x20;
-        const int WS_EX_LAYERED = 0x80000;
-        var ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-        SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+        var ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        ex |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
     }
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
-    private static extern IntPtr GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
-    private static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
     public void Dispose()
     {
